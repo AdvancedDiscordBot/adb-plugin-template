@@ -1,14 +1,20 @@
 // Run with: npm test  (or) node test/local-harness.js
-// Loads the plugin against a mock ctx, then exercises each registered
-// command with a fake interaction. Extend this per-plugin.
+//
+// Loads the plugin against a bot-faithful mock ctx (test/mock-ctx.js), then
+// exercises each registered command with a fake interaction. This is the
+// STARTING POINT — copy the pattern and add assertions for your own commands,
+// events, and models. No running bot or MongoDB required.
 
 const assert = require("node:assert");
 const { load } = require("../index.js");
 const { createMockCtx } = require("./mock-ctx");
 
+// Minimal fake interaction. Add the option getters / fields your command reads.
 function fakeInteraction(options = {}) {
 	const replies = [];
 	return {
+		guildId: options._guildId ?? "test-guild",
+		user: options._user ?? { id: "test-user" },
 		options: {
 			getString: (name) => options[name] ?? null,
 			getInteger: (name) => options[name] ?? null,
@@ -24,14 +30,19 @@ function fakeInteraction(options = {}) {
 }
 
 async function main() {
-	const { ctx, commands } = createMockCtx({ pluginName: "adb-plugin-REPLACE_ME" });
+	// createMockCtx returns the frozen `ctx` (what the bot hands your plugin)
+	// plus test-only handles: registeredCommands, registeredEvents, emitEvent,
+	// models, pluginConfigs, hooks. See test/mock-ctx.js.
+	const { ctx, registeredCommands } = createMockCtx({
+		pluginName: "adb-plugin-REPLACE_ME",
+	});
 
 	await load(ctx);
 
-	assert.ok(commands.has("example"), "expected /example to be registered");
+	assert.ok(registeredCommands.has("example"), "expected /example to be registered");
 
 	const interaction = fakeInteraction({ text: "hi from test" });
-	await commands.get("example").execute(interaction);
+	await registeredCommands.get("example").execute(interaction);
 
 	assert.strictEqual(interaction.replies[0], "hi from test");
 

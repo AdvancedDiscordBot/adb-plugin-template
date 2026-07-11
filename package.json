@@ -26,6 +26,7 @@
     "mongoose": ">=7.0.0"
   },
   "devDependencies": {
+    "discord.js": "^14.14.1",
     "mongoose": "^8.0.0"
   }
 }
