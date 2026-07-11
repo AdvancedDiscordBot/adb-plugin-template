@@ -1,7 +1,7 @@
 # adb-plugin-template
 
 Clean starting point for building an external (npm-installable) plugin for
-[Advanced Discord Bot](https://github.com/DeadIndian/Advanced-Discord-Bot) (ADB).
+[Advanced Discord Bot](https://github.com/AdvancedDiscordBot/Advanced-Discord-Bot) (ADB).
 
 See `adb-plugin-reminders` (sibling repo) for a complete, working example built from this template.
 
@@ -96,4 +96,10 @@ See `REGISTRY-SETUP.md` in the main ADB repo — fork the registry repo, add an 
 
 ## License
 
-MIT
+This project is licensed under the **GNU Affero General Public License v3.0**. See the [LICENSE](LICENSE) file for details.
+
+This repository follows the policies of the main ADB project.
+
+- **Contribution Guidelines**: [CONTRIBUTING.md](https://github.com/AdvancedDiscordBot/Advanced-Discord-Bot/blob/main/CONTRIBUTING.md)
+- **Code of Conduct**: [CODE_OF_CONDUCT.md](https://github.com/AdvancedDiscordBot/Advanced-Discord-Bot/blob/main/CODE_OF_CONDUCT.md)
+- **Security Policy**: [SECURITY.md](https://github.com/AdvancedDiscordBot/Advanced-Discord-Bot/blob/main/SECURITY.md)

@@ -1,21 +1,27 @@
 {
-	"name": "adb-plugin-REPLACE_ME",
-	"displayName": "Replace Me Plugin",
-	"version": "1.0.0",
-	"description": "One-line description of what this plugin does.",
-	"author": "YourName",
-	"main": "index.js",
-	"requiresRestart": false,
-	"permissions": ["db.read", "db.write", "commands.register"],
-	"discordPermissions": ["SendMessages"],
-	"configSchema": {
-		"type": "object",
-		"properties": {
-			"enabled": {
-				"type": "boolean",
-				"default": true,
-				"description": "Enable this plugin for the server"
-			}
-		}
-	}
+  "name": "adb-plugin-REPLACE_ME",
+  "displayName": "Replace Me Plugin",
+  "version": "1.0.0",
+  "description": "One-line description of what this plugin does.",
+  "author": "DeadIndian",
+  "main": "index.js",
+  "requiresRestart": false,
+  "permissions": [
+    "db.read",
+    "db.write",
+    "commands.register"
+  ],
+  "discordPermissions": [
+    "SendMessages"
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "default": true,
+        "description": "Enable this plugin for the server"
+      }
+    }
+  }
 }
