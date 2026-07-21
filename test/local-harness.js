@@ -33,8 +33,8 @@ async function main() {
 	// createMockCtx returns the frozen `ctx` (what the bot hands your plugin)
 	// plus test-only handles: registeredCommands, registeredEvents, emitEvent,
 	// models, pluginConfigs, hooks. See test/mock-ctx.js.
-	const { ctx, registeredCommands } = createMockCtx({
-		pluginName: "adb-plugin-REPLACE_ME",
+	const { ctx, registeredCommands, registeredEvents, emitEvent } = createMockCtx({
+		pluginName: "adb-plugin-template",
 	});
 
 	await load(ctx);
@@ -45,6 +45,15 @@ async function main() {
 	await registeredCommands.get("example").execute(interaction);
 
 	assert.strictEqual(interaction.replies[0], "hi from test");
+
+	// Isolation-safe event handler: feed a SERIALIZED payload (plain object, the
+	// shape Core sends a worker) and confirm the handler reads it without error.
+	assert.ok(registeredEvents.has("guildMemberAdd"), "expected guildMemberAdd handler");
+	await emitEvent("guildMemberAdd", {
+		id: "user-1",
+		user: { id: "user-1", tag: "User#0001", username: "User" },
+		guildId: "test-guild",
+	});
 
 	console.log("OK: all local-harness checks passed");
 }

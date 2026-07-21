@@ -8,10 +8,27 @@ See `adb-plugin-reminders` (sibling repo) for a complete, working example built 
 ## Use this template
 
 1. Copy this folder / use as a GitHub template repo, rename it to `adb-plugin-<your-name>`.
-2. Find-and-replace `adb-plugin-REPLACE_ME` with your real package name in `plugin.json` and `package.json`.
+2. Find-and-replace `adb-plugin-template` with your real package name in `plugin.json` and `package.json`.
 3. **Naming rule**: the package name (and the folder name, if run as a local plugin) must start with `adb-plugin-` — that's the exact string `PluginManager` scans `node_modules/` for.
 4. Implement your feature in `index.js` / `commands/` / `models/`.
 5. Update this README.
+
+## Isolation (read this first)
+
+When the bot runs with plugin isolation enabled (the default), an npm-installed
+plugin runs in a **sandboxed worker thread** — it cannot touch `process.env`,
+`require('fs')`, the raw Discord client, or Mongo directly. It reaches those
+only through capability-gated RPC on `ctx`. Keep your plugin isolation-safe:
+
+- **Never use `ctx.client`** — it is `null` in a worker. Use `ctx.discord.*`.
+- **Never `require("discord.js")` / `require("mongoose")` at runtime.** Model
+  schemas are the exception: pass a plain schema object to `ctx.defineModel`,
+  and Core compiles it.
+- **Event payloads are serialized plain objects**, not discord.js instances.
+  Read ids defensively: `eventPayload.guildId || eventPayload.guild?.id`.
+- **Declare everything in `capabilities`.** The broker denies any RPC whose
+  capability you didn't declare. Missing a capability = silent failure at
+  runtime (the call throws "Missing capability: ...").
 
 ## Plugin contract
 
@@ -28,18 +45,18 @@ module.exports = { load };
 
 | Member | What it is |
 |---|---|
-| `ctx.client` | Raw discord.js `Client` — full Discord API access |
-| `ctx.db` | Core `Database` singleton (server config, user profiles, etc.) |
-| `ctx.commands` | Live `Collection` of all registered commands |
+| `ctx.client` | `null` in isolated mode — **do not use**. Use `ctx.discord`. |
+| `ctx.discord` | Isolation-safe Discord surface: `sendToChannel(channelId, {content, embeds, files})`, `sendDM(userId, payload)`, `getGuild(guildId)`, `getMember(guildId, userId)`, `fetchChannel(channelId)` |
+| `ctx.db` | Capability-gated DB: `getPluginConfig(guildId, name)`, `updatePluginConfig(...)`, plus profile/server methods under `storage:read-profiles`/`write-profiles` |
 | `ctx.registerCommand(command)` | Register a `{ data, execute }` slash command |
-| `ctx.overrideCommand(name, (originalExecute, command) => newExecute)` | Wrap an existing command (yours or core's) |
-| `ctx.registerEvent(eventName, handler, { once? })` | Listen to a discord.js client event |
-| `ctx.defineModel(modelName, mongooseSchema)` | Compile a Mongo model namespaced as `plugin_<your-plugin-name>_<modelName>` |
-| `ctx.hooks.on(hookName, handler, priority?)` / `ctx.hooks.emitHook(hookName, payload)` | Bot lifecycle hook bus (`onPluginLoad`, `onPluginUnload`, `onLevelUp`, etc. — see ADB's `PLUGINS-ROADMAP.md`) |
-| `ctx.config.env` | Read-only `process.env` |
+| `ctx.registerEvent(eventName, handler)` | Listen to a Discord event (handler gets a serialized payload in isolated mode) |
+| `ctx.defineModel(modelName, schema)` | Compile a Mongo model namespaced as `plugin_<your-plugin-name>_<modelName>` |
+| `ctx.hooks.on(hookName, handler)` / `ctx.hooks.emitHook(hookName, payload)` | Inter-plugin hook bus (needs `hooks:subscribe` / `hooks:emit`) |
+| `ctx.scheduler.schedule(name, cron, fn)` / `ctx.scheduler.cancel(name)` | Recurring jobs (needs `scheduler:cron`) |
+| `ctx.config.env` | Empty in isolated mode — secrets never leave Core |
 | `ctx.logger` | `.info()` / `.warn()` / `.error()`, namespaced to your plugin |
 
-**Gotcha**: `ctx.scheduler` exists (it's the bot's internal `TaskScheduler`) but has **no generic `.schedule(name, cron, fn)` method** — some ADB docs claim otherwise. If you need a periodic job, bundle your own `node-cron` dependency and call `cron.schedule(...)` directly inside `load()`, same as ADB core does internally.
+`ctx.overrideCommand()` is **not available** in isolated mode — use `ctx.registerCommand()`.
 
 ## `plugin.json` fields
 
@@ -47,14 +64,17 @@ module.exports = { load };
 |---|---|---|
 | `name` | yes | must start with `adb-plugin-` |
 | `version` | yes | semver |
-| `description` | yes | |
-| `author` | yes | |
+| `description` / `author` | yes | |
 | `main` | no | defaults to `index.js` |
 | `displayName` | no | shown in marketplace UI |
 | `requiresRestart` | no | `true` disables hot-reload eligibility |
-| `port` | no | declares a plugin-owned web dashboard port (see main repo's `CREATE-PLUGIN.md` for the fastify pattern) |
-| `configSchema` | no | JSON Schema → auto-generated per-guild settings UI in the dashboard, read via `ctx.db.getPluginConfig(guildId, pluginName)` |
-| `permissions` | no | declared for the marketplace install prompt (`db.read`, `db.write`, `commands.register`, `commands.override`, `scheduler`, ...) |
+| `isolation` | no | `true` (default) run in a worker |
+| `manifestVersion` | v2 | set to `2` |
+| `process` | v2 | `{ model: "pooled"\|"persistent"\|"oneshot", maxExecutionMs, memoryMb, persistentReason }` |
+| `capabilities` | **yes for isolated** | what the broker lets you do — `{ storage: [...], discord: [...], hooks: [...], scheduler: [...] }` |
+| `permissions` | v2 | mirror of capabilities + `network.outbound` host allowlist, `filesystem`, `childProcess`, `nativeAddons` |
+| `configSchema` | no | JSON Schema → per-guild settings UI, read via `ctx.db.getPluginConfig(guildId, name)` |
+| `discordPermissions` | no | Discord permission flags for the bot invite link |
 
 ## Local testing (no bot, no Mongo required)
 

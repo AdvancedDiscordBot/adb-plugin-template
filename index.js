@@ -2,47 +2,64 @@ const exampleCommand = require("./commands/example");
 const exampleSchema = require("./models/example");
 
 /**
- * Every ADB plugin exports a single `load(ctx)` function. `ctx` is frozen
- * and namespaced to this plugin — see README.md for the full API reference.
+ * Every ADB plugin exports a single `load(ctx)` function. `ctx` is frozen and
+ * namespaced to this plugin.
+ *
+ * This template is ISOLATION-SAFE: it runs unchanged whether the bot loads it
+ * directly (in-process) or in a sandboxed worker thread. The rules that keep
+ * it isolation-safe:
+ *
+ *   1. Never touch `ctx.client` — it is `null` in a worker. Use `ctx.discord.*`.
+ *   2. Never `require("discord.js")` / `require("mongoose")` at runtime — those
+ *      modules don't resolve inside a worker. Model schemas are the exception:
+ *      they're plain schema objects passed to `ctx.defineModel`, and the Core
+ *      process compiles them.
+ *   3. Event handlers receive a *serialized* payload (plain object), not a
+ *      Discord.js class instance. Read ids defensively (see below).
+ *   4. Whatever your plugin does, it must be declared in plugin.json
+ *      `capabilities` — the broker denies any RPC you didn't declare.
  */
 async function load(ctx) {
-	// --- Register a slash command -----------------------------------------
-	ctx.registerCommand(exampleCommand);
-
-	// --- Define a namespaced DB model (optional) ----------------------------
-	// Becomes collection `plugin_<your-plugin-name>_example` in Mongo.
+	// --- Define a namespaced DB model (needs capability storage:own-collection)
+	// Becomes collection `plugin_adb-plugin-template_example` in Mongo.
 	const ExampleModel = ctx.defineModel("example", exampleSchema);
-	void ExampleModel; // use it inside commands/events as needed
 
-	// --- Listen to a Discord event (optional) -------------------------------
-	// ctx.registerEvent("guildMemberAdd", async (member, client) => {
-	// 	ctx.logger.info(`${member.user.tag} joined ${member.guild.name}`);
+	// --- Register a slash command -----------------------------------------
+	// Inject the model so the command file never has to reach outside the plugin.
+	ctx.registerCommand(exampleCommand(ExampleModel));
+
+	// --- Listen to a Discord event (isolation-safe) -------------------------
+	// In isolated mode `eventPayload` is a plain serialized object, e.g.
+	//   { id, user: { id, tag, username, avatarURL }, guildId, nickname, roles }
+	// In direct mode it's the real GuildMember. Read ids from both shapes:
+	ctx.registerEvent("guildMemberAdd", async (eventPayload) => {
+		try {
+			const guildId = eventPayload.guildId || eventPayload.guild?.id;
+			const userId = eventPayload.user?.id || eventPayload.id;
+			if (!guildId) return;
+
+			// Read per-server settings (needs capability storage:own-collection).
+			const config = await ctx.db.getPluginConfig(guildId, "adb-plugin-template");
+			const message = config?.data?.welcomeMessage || "Hello from the template plugin!";
+
+			ctx.logger.info(`template: member ${userId} joined ${guildId} — ${message}`);
+
+			// To actually send a message you'd need a channel id in config, then:
+			//   await ctx.discord.sendToChannel(channelId, { content: message });
+		} catch (err) {
+			ctx.logger.error("template guildMemberAdd handler failed:", err);
+		}
+	});
+
+	// --- Hook into other plugins (needs capability hooks:subscribe) ----------
+	// ctx.hooks.on("onLevelUp", async ({ userId, guildId, newLevel }) => {
+	// 	ctx.logger.info(`template saw level-up: ${userId} -> ${newLevel}`);
 	// });
 
-	// --- Override an existing core/plugin command (optional) ----------------
-	// ctx.overrideCommand("daily", (originalExecute, command) => {
-	// 	return async (interaction) => {
-	// 		ctx.logger.info("daily command intercepted");
-	// 		return originalExecute(interaction);
-	// 	};
+	// --- Scheduled work (needs capability scheduler:cron) --------------------
+	// await ctx.scheduler.schedule("cleanup", "0 * * * *", async () => {
+	// 	ctx.logger.info("template hourly job");
 	// });
-
-	// --- Hook into bot lifecycle events (optional) --------------------------
-	// ctx.hooks.on("onLevelUp", async ({ user, newLevel, guild }) => {
-	// 	ctx.logger.info(`${user.tag} hit level ${newLevel}`);
-	// });
-
-	// --- Scheduled/cron work (optional) --------------------------------------
-	// NOTE: ctx.scheduler is the bot's internal TaskScheduler instance and, as
-	// of the current ADB core, does NOT expose a generic `.schedule(name, cron, fn)`
-	// method despite what some docs imply. Bring your own `node-cron` dependency
-	// for plugin-owned periodic jobs instead — see adb-plugin-reminders for a
-	// working example.
-	// const cron = require("node-cron");
-	// cron.schedule("*/5 * * * *", async () => { ... });
-
-	// --- Read env config (read-only) -----------------------------------------
-	// const token = ctx.config.env.SOME_API_KEY;
 
 	ctx.logger.info("Template plugin loaded");
 }

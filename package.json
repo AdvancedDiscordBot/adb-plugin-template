@@ -1,7 +1,7 @@
 {
-  "name": "adb-plugin-REPLACE_ME",
-  "version": "1.0.0",
-  "description": "One-line description of what this plugin does.",
+  "name": "adb-plugin-template",
+  "version": "2.0.0",
+  "description": "Starter template for ADB plugins — isolation-ready reference.",
   "main": "index.js",
   "files": [
     "index.js",
