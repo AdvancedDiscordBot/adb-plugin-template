@@ -1,7 +1,7 @@
 {
 	"name": "adb-plugin-template",
 	"displayName": "Template Plugin",
-	"version": "2.0.0",
+	"version": "2.1.0",
 	"description": "Starter template for ADB plugins — isolation-ready reference implementation.",
 	"author": "DeadIndian",
 	"license": "AGPL-3.0-only",
