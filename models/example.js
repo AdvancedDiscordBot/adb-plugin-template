@@ -8,6 +8,6 @@ const { Schema } = require("mongoose");
 module.exports = new Schema({
 	guildId: { type: String, required: true, index: true },
 	userId: { type: String, required: true },
-	data: { type: String, default: "" },
+	data: { type: String, default: "", maxlength: 2000 },
 	createdAt: { type: Date, default: Date.now },
 });

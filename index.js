@@ -2,18 +2,18 @@ const exampleCommand = require("./commands/example");
 const exampleSchema = require("./models/example");
 
 /**
- * Every ADB plugin exports a single `load(ctx)` function. `ctx` is frozen and
- * namespaced to this plugin.
+ * Every ADB plugin exports `load(ctx)`. Treat ctx as read-only apart from models;
+ * direct PluginContext enforces that restriction, the worker shim currently does not.
  *
  * This template is ISOLATION-SAFE: it runs unchanged whether the bot loads it
  * directly (in-process) or in a sandboxed worker thread. The rules that keep
  * it isolation-safe:
  *
- *   1. Never touch `ctx.client` — it is `null` in a worker. Use `ctx.discord.*`.
- *   2. Never `require("discord.js")` / `require("mongoose")` at runtime — those
- *      modules don't resolve inside a worker. Model schemas are the exception:
- *      they're plain schema objects passed to `ctx.defineModel`, and the Core
- *      process compiles them.
+ *   1. The command needs no raw client. ctx.discord exists ONLY in workers;
+ *      non-command delivery needs an explicit mode adapter (see reminders).
+ *   2. Export a real mongoose.Schema, not a model or raw definition. The worker
+ *      serializes supported schema fields/indexes; Core compiles the model.
+ *      Mongoose is still required locally to construct that schema, not to connect.
  *   3. Event handlers receive a *serialized* payload (plain object), not a
  *      Discord.js class instance. Read ids defensively (see below).
  *   4. Whatever your plugin does, it must be declared in plugin.json
@@ -26,7 +26,7 @@ async function load(ctx) {
 
 	// --- Register a slash command -----------------------------------------
 	// Inject the model so the command file never has to reach outside the plugin.
-	ctx.registerCommand(exampleCommand(ExampleModel));
+	await ctx.registerCommand(exampleCommand(ExampleModel, ctx.db));
 
 	// --- Listen to a Discord event (isolation-safe) -------------------------
 	// In isolated mode `eventPayload` is a plain serialized object, e.g.
@@ -34,18 +34,19 @@ async function load(ctx) {
 	// In direct mode it's the real GuildMember. Read ids from both shapes:
 	ctx.registerEvent("guildMemberAdd", async (eventPayload) => {
 		try {
-			const guildId = eventPayload.guildId || eventPayload.guild?.id;
-			const userId = eventPayload.user?.id || eventPayload.id;
-			if (!guildId) return;
+			const guildId = eventPayload?.guildId || eventPayload?.guild?.id;
+			const userId = eventPayload?.user?.id || eventPayload?.id;
+			if (!guildId || !userId) return;
 
 			// Read per-server settings (needs capability storage:own-collection).
 			const config = await ctx.db.getPluginConfig(guildId, "adb-plugin-template");
+			if (config?.enabled !== true) return;
 			const message = config?.data?.welcomeMessage || "Hello from the template plugin!";
 
 			ctx.logger.info(`template: member ${userId} joined ${guildId} — ${message}`);
 
-			// To actually send a message you'd need a channel id in config, then:
-			//   await ctx.discord.sendToChannel(channelId, { content: message });
+			// This example only logs. Sending requires a channel from config and a
+			// direct/worker delivery adapter; ctx.discord is worker-only.
 		} catch (err) {
 			ctx.logger.error("template guildMemberAdd handler failed:", err);
 		}
@@ -56,10 +57,11 @@ async function load(ctx) {
 	// 	ctx.logger.info(`template saw level-up: ${userId} -> ${newLevel}`);
 	// });
 
-	// --- Scheduled work (needs capability scheduler:cron) --------------------
-	// await ctx.scheduler.schedule("cleanup", "0 * * * *", async () => {
-	// 	ctx.logger.info("template hourly job");
-	// });
+	// --- Scheduled work ----------------------------------------------------
+	// Not declared by this template. Add scheduler:cron before scheduling jobs:
+	// worker: schedule(expression, callback, name) -> taskId, cancel(taskId).
+	// direct: schedule(name, expression, callback), unschedule(name).
+	// See reminders/lib/runtime.js for the narrow compatibility adapter.
 
 	ctx.logger.info("Template plugin loaded");
 }
