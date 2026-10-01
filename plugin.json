@@ -31,6 +31,22 @@
 	},
 	"declaredDependencies": [],
 	"discordPermissions": ["SendMessages", "EmbedLinks"],
+	"engines": {
+		"core": ">=2.0.0",
+		"plugins": { "administration": ">=2.0.0" }
+	},
+	"settings": {
+		"commandPermissions": true,
+		"schema": [
+			{ "key": "welcomeMessage", "type": "string", "label": "Welcome message", "default": "Hello from the template plugin!" },
+			{ "key": "announceChannel", "type": "channel", "label": "Announcement channel" },
+			{ "key": "staffRole", "type": "role", "label": "Staff role" },
+			{ "key": "maxPerDay", "type": "number", "label": "Max uses per day", "default": 10 },
+			{ "key": "featureEnabled", "type": "boolean", "label": "Feature enabled", "default": true },
+			{ "key": "mode", "type": "select", "label": "Mode", "default": "normal",
+			  "options": [ { "value": "normal", "label": "Normal" }, { "value": "strict", "label": "Strict" } ] }
+		]
+	},
 	"configSchema": {
 		"type": "object",
 		"properties": {
